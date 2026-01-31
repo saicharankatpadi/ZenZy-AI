@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(uuid())
+  clerkUserId     String           @unique
+  email           String           @unique
+  name            String?
+  imageUrl        String?
+  industry        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bio             String?
+  experience      Int?
+  skills          String[]
+  assessments     Assessment[]
+  courses         Course[]
+  coverLetter     CoverLetter[]
+  enrollments     Enrollment[]
+  jobAnalysis     JobAnalysis[]
+  resume          Resume?
+  industryInsight IndustryInsight? @relation(fields: [industry], references: [industry])
+}
+
+model Assessment {
+  id             String   @id @default(cuid())
+  userId         String
+  quizScore      Float
+  questions      Json[]
+  category       String
+  improvementTip String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Resume {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  content   String
+  atsScore  Float?
+  feedback  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CoverLetter {
+  id             String   @id @default(cuid())
+  userId         String
+  content        String
+  jobDescription String?
+  companyName    String
+  jobTitle       String
+  status         String   @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model IndustryInsight {
+  id                String        @id @default(cuid())
+  industry          String        @unique
+  salaryRanges      Json[]
+  growthRate        Float
+  demandLevel       DemandLevel
+  topSkills         String[]
+  marketOutlook     MarketOutlook
+  keyTrends         String[]
+  recommendedSkills String[]
+  lastUpdated       DateTime      @default(now())
+  nextUpdate        DateTime
+  users             User[]
+
+  @@index([industry])
+}
+
+model historyTable {
+  id          Int      @id @default(autoincrement())
+  recordId    String   @unique
+  content     Json
+  userEmail   String
+  aiAgentType String
+  metaData    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userEmail])
+}
+
+model Course {
+  id             Int          @id @default(autoincrement())
+  cid            String       @unique
+  name           String?
+  description    String?
+  noOfChapters   Int
+  includeVideo   Boolean      @default(false)
+  level          String
+  category String? @map("catetgory")
+  courseJson     Json?
+  userEmail      String
+  bannerImageUrl String       @default("")
+  courseContent  Json         @default("{}")
+  user           User         @relation(fields: [userEmail], references: [email])
+  enrollments    Enrollment[]
+
+  @@map("Course")
+}
+
+model Model {
+  id          Int     @id @default(autoincrement())
+  courseId    Int     @unique
+  title       String
+  desc        String
+  bannerImage String
+  level       String  @default("Beginner")
+  tags        String?
+
+  @@map("Model")
+}
+
+model CourseChapter {
+  id        Int    @id @default(autoincrement())
+  courseId  Int
+  chapterId Int
+  name      String
+  desc      String
+  exercises Json
+
+  @@map("courseChapters")
+}
+
+model Enrollment {
+  id                Int    @id @default(autoincrement())
+  cid               String
+  userEmail         String
+  completedChapters Json?  @default("[]")
+  course            Course @relation(fields: [cid], references: [cid])
+  user              User   @relation(fields: [userEmail], references: [email])
+
+  @@unique([cid, userEmail])
+}
+
+model JobAnalysis {
+  id              String   @id @default(cuid())
+  userId          String
+  jobUrl          String?
+  jobTitle        String?
+  companyName     String?
+  companyLogo     String?
+  companySize     String?
+  companyIndustry String?
+  ghostJobScore   Int      @default(0)
+  riskLevel       String   @default("LOW")
+  redFlags        Json?
+  pros            Json?
+  cons            Json?
+  userMatchScore  Int      @default(0)
+  missingSkills   Json?
+  matchingSkills  Json?
+  recentNews      Json?
+  financialHealth Json?
+  jobDescription  String?
+  status          String   @default("analyzing")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  companyFounded  String?
+  githubData      Json?
+  location        String?
+  recommendation  String   @default("skip")
+  salary          String?
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model EnrolledCourse {
+  id           Int      @id @default(autoincrement())
+  courseId     Int
+  userId       String
+  enrolledDate DateTime @default(now())
+  xpEarned     Int
+
+  @@map("enrollCourse")
+}
+
+model CompletedExercise {
+  id         Int    @id @default(autoincrement())
+  courseId   Int
+  chapterId  Int
+  exerciseId Int
+  userId     String
+
+  @@map("completedExercise")
+}
+
+enum DemandLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MarketOutlook {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+model Interview {
+  id             String   @id @default(uuid())
+  userId         String
+  jobTitle       String
+  jobDescription String?  @db.Text
+  resumeUrl      String?
+  status         String   @default("pending")
+  currentIndex   Int      @default(0)
+  techStack      String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  questions Question[]
+  answers   Answer[]
+  feedback  Feedback?
+}
+
+model Question {
+  id           String    @id @default(uuid())
+  interviewId  String
+  interview    Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  questionText String
+  type         String    @default("technical") // intro, technical
+  orderIndex   Int
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  answers Answer[]
+
+  @@index([interviewId, orderIndex])
+}
+
+model Answer {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerText  String    @db.Text
+  confidence  Int?
+  createdAt   DateTime  @default(now())
+
+  @@unique([interviewId, questionId]) // Prevent duplicate answers per question
+  @@index([interviewId])
+}
+
+model Feedback {
+  id          String    @id @default(uuid())
+  interviewId String    @unique
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  // Scores
+  totalScore     Int  @default(0)
+  categoryScores Json // Array of {name, score, comment}
+
+  // Arrays
+  strengths           String[]
+  areasForImprovement String[]
+
+  // Assessment
+  finalAssessment String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
