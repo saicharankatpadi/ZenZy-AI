@@ -1,198 +1,173 @@
-
-
 import logging
 import asyncio
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
 
-# Suppress aiortc VP8 decoder warnings
-logging.getLogger("aiortc.codecs.vpx").setLevel(logging.ERROR)
-logging.getLogger("aiortc").setLevel(logging.WARNING)
+# ================= LOGGING =================
+logging.getLogger("aiortc").setLevel(logging.ERROR)
+logging.getLogger("vision_agents").setLevel(logging.WARNING)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Vision Agents imports
+# ================= ENV =================
+load_dotenv()
+
+# ================= IMPORTS =================
 from vision_agents.core import agents
 from vision_agents.plugins import getstream, gemini
 from vision_agents.core.edge.types import User
 
-# ===== SAFE BYPASS FOR REMOVED EVENT (DO NOT REMOVE) =====
-try:
-    from vision_agents.core.events import AgentSayErrorEvent as PluginErrorEvent
-except ImportError:
-    class PluginErrorEvent(Exception):
-        error_message = "Unknown plugin error"
-        is_fatal = False
-# ========================================================
-
-# Core events
 from vision_agents.core.events import (
-    CallSessionParticipantJoinedEvent,
-    CallSessionParticipantLeftEvent,
     CallSessionStartedEvent,
     CallSessionEndedEvent,
+    CallSessionParticipantJoinedEvent,
+    CallSessionParticipantLeftEvent,
 )
 
-# LLM events
 from vision_agents.core.llm.events import (
     RealtimeUserSpeechTranscriptionEvent,
-    LLMResponseChunkEvent
 )
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
-
-# Meeting data storage
+# ================= GLOBAL STATE =================
 meeting_data = {
     "transcript": [],
-    "is_active": False,
     "response_task": None,
-    "agent": None,
 }
 
-
-async def start_agent(call_id: str):
-    logger.info("🤖 Starting Meeting Assistant...")
-    logger.info(f"📞 Call ID: {call_id}")
-
-    agent = agents.Agent(
-        edge=getstream.Edge(),
-        agent_user=User(
-            id="meeting-assistant-bot",
-            name="Meeting Assistant"
-        ),
-        instructions="""
-        You are a meeting transcription bot and Jarvis-style assistant.
-        CRITICAL RULES:
-        1. Listen to users continuously.
-        2. Provide helpful suggestions, answers, or feedback after a user stops speaking.
-        3. Only respond with useful content; do not repeat user speech.
-        4. If asked to "summarize", summarize all meeting points so far.
-        """,
-        llm=gemini.Realtime(fps=0),
-    )
-
-    # Enable audio so assistant can speak
-    agent.edge._audio_enabled = True
-
-    meeting_data["agent"] = agent
-    meeting_data["call_id"] = call_id
-
-    # ===== Event handlers =====
-    @agent.events.subscribe
-    async def handle_session_started(event: CallSessionStartedEvent):
-        meeting_data["is_active"] = True
-        logger.info("🎙️ Meeting started")
-
-    @agent.events.subscribe
-    async def handle_participant_joined(event: CallSessionParticipantJoinedEvent):
-        if event.participant.user.id == "meeting-assistant-bot":
-            return
-        logger.info(f"👤 Participant joined: {event.participant.user.name}")
-
-    @agent.events.subscribe
-    async def handle_participant_left(event: CallSessionParticipantLeftEvent):
-        if event.participant.user.id == "meeting-assistant-bot":
-            return
-        logger.info(f"👋 Participant left: {event.participant.user.name}")
-
-    async def delayed_response(user_text: str):
-        """Wait a bit before responding like a real assistant"""
-        await asyncio.sleep(1.5)
-        try:
-            if not agent:
-                return
-
-            if "summarize" in user_text.lower():
-                summary_text = generate_summary()
-                await agent.say(summary_text)  # Speak the summary
-            else:
-                prompt = f"User said: '{user_text}'. Provide a helpful response."
-                response = await agent.llm.ask(prompt)
-                await agent.say(response)  # Speak the response
-
-        except Exception as e:
-            logger.error(f"❌ Jarvis response error: {e}")
-
-    @agent.events.subscribe
-    async def handle_transcript(event: RealtimeUserSpeechTranscriptionEvent):
-        if not event.text or not event.text.strip():
-            return
-
-        speaker = getattr(event, 'participant_id', 'Unknown')
-        meeting_data["transcript"].append({
-            "speaker": speaker,
-            "text": event.text,
-            "timestamp": getattr(event, 'timestamp', None)
-        })
-        logger.info(f"[{speaker}]: {event.text}")
-
-        # Cancel previous response task
-        if meeting_data.get("response_task") and not meeting_data["response_task"].done():
-            meeting_data["response_task"].cancel()
-
-        # Start new delayed response
-        meeting_data["response_task"] = asyncio.create_task(delayed_response(event.text.strip()))
-
-    @agent.events.subscribe
-    async def handle_llm_response(event: LLMResponseChunkEvent):
-        if hasattr(event, "delta") and event.delta:
-            logger.info(f"🤖 Assistant (partial): {event.delta}")
-
-    @agent.events.subscribe
-    async def handle_session_ended(event: CallSessionEndedEvent):
-        meeting_data["is_active"] = False
-        logger.info("🛑 Meeting ended")
-
-    @agent.events.subscribe
-    async def handle_errors(event: PluginErrorEvent):
-        logger.error(f"❌ Plugin error: {getattr(event, 'error_message', event)}")
-
-    # ===== Create user and join call safely =====
-    await agent.create_user()
-    call = agent.edge.client.video.call("default", call_id)
-
-    try:
-        async with agent.join(call):
-            logger.info("🎙️ MEETING ASSISTANT ACTIVE")
-            try:
-                await agent.finish()
-            except Exception as e:
-                if "InvalidStateError" in str(e):
-                    logger.warning(f"⚠️ Ignored WebRTC state error: {e}")
-                else:
-                    raise
-    except Exception as e:
-        logger.error(f"❌ Could not join call safely: {e}")
+jarvis_awake = False  # 🔥 WAKE WORD STATE
 
 
+# ================= SUMMARY =================
 def generate_summary():
-    """Generate a simple text summary of all transcript messages"""
     if not meeting_data["transcript"]:
-        return "No meeting points recorded yet."
+        return "No discussion points recorded yet."
+
     summary = "Here is the meeting summary so far:\n"
     for entry in meeting_data["transcript"]:
-        speaker = entry.get("speaker", "Unknown")
-        text = entry.get("text", "")
-        summary += f"- [{speaker}]: {text}\n"
+        summary += f"- [{entry['speaker']}]: {entry['text']}\n"
     return summary
 
 
-def print_meeting_summary():
-    print("\n📋 MEETING SUMMARY")
-    for entry in meeting_data["transcript"]:
-        print(f"[{entry['speaker']}]: {entry['text']}")
+# ================= MAIN =================
+async def start_agent(call_id: str):
+    global jarvis_awake
+
+    logger.info("🤖 Booting Meeting Assistant + Jarvis")
+    logger.info(f"📞 Call ID: {call_id}")
+
+    # ✅ STABLE GEMINI REALTIME
+    llm = gemini.Realtime(fps=1)
+
+    edge = getstream.Edge(
+        enable_audio=True,
+        enable_video=True
+    )
+
+    agent = agents.Agent(
+        edge=edge,
+        agent_user=User(
+            id="meeting-assistant-bot",
+            name="Jarvis Assistant"
+        ),
+        instructions="""
+You are Jarvis, a meeting assistant.
+
+Rules:
+- Stay silent unless the user says "Hey Jarvis".
+- After waking, answer once, then go silent again.
+- If asked to summarize, summarize the meeting.
+- Keep responses short and clear.
+""",
+        llm=llm,
+    )
+
+    # 🔥 DO NOT LISTEN TO YOURSELF
+    agent.edge.ignore_agent_audio = True
+
+    # ================= EVENTS =================
+
+    @agent.events.subscribe
+    async def on_call_started(event: CallSessionStartedEvent):
+        logger.info("🎙️ Call connected")
+        await asyncio.sleep(3.5)
+        await agent.say(
+            "At your service. Say 'Hey Jarvis' when you need me."
+        )
+
+    @agent.events.subscribe
+    async def on_participant_joined(event: CallSessionParticipantJoinedEvent):
+        if event.participant.user.id != agent.agent_user.id:
+            logger.info(f"👤 Joined: {event.participant.user.name}")
+
+    @agent.events.subscribe
+    async def on_participant_left(event: CallSessionParticipantLeftEvent):
+        if event.participant.user.id != agent.agent_user.id:
+            logger.info(f"👋 Left: {event.participant.user.name}")
+
+    @agent.events.subscribe
+    async def on_transcript(event: RealtimeUserSpeechTranscriptionEvent):
+        global jarvis_awake
+
+        if not event.text or not event.text.strip():
+            return
+
+        text = event.text.strip()
+        text_lower = text.lower()
+        speaker = getattr(event, "participant_id", "User")
+
+        meeting_data["transcript"].append({
+            "speaker": speaker,
+            "text": text,
+        })
+
+        logger.info(f"[{speaker}]: {text}")
+
+        # 🔥 WAKE WORD
+        if "hey jarvis" in text_lower:
+            jarvis_awake = True
+            await agent.say("Yes, I am listening.")
+            return
+
+        # ❌ Ignore unless awake
+        if not jarvis_awake:
+            return
+
+        jarvis_awake = False  # sleep again
+
+        # Cancel any pending response
+        if meeting_data["response_task"] and not meeting_data["response_task"].done():
+            meeting_data["response_task"].cancel()
+
+        async def respond():
+            await asyncio.sleep(1.2)
+
+            if "summarize" in text_lower:
+                await agent.say(generate_summary())
+            else:
+                prompt = f"User said: '{text}'. Respond helpfully."
+                reply = await agent.llm.ask(prompt)
+                await agent.say(reply)
+
+        meeting_data["response_task"] = asyncio.create_task(respond())
+
+    @agent.events.subscribe
+    async def on_call_ended(event: CallSessionEndedEvent):
+        logger.info("🛑 Call ended")
+
+    # ================= JOIN CALL =================
+    await agent.create_user()
+    call = agent.edge.client.video.call("default", call_id)
+
+    async with agent.join(call):
+        logger.info("🚀 JARVIS ACTIVE")
+        await asyncio.Event().wait()  # 🔥 KEEP ALIVE SAFELY
 
 
+# ================= ENTRY =================
 if __name__ == "__main__":
     call_id = os.getenv("CALL_ID", f"meeting-{uuid4().hex[:8]}")
     try:
         asyncio.run(start_agent(call_id))
     except KeyboardInterrupt:
-        print("Stopped")
-    finally:
-        if meeting_data["transcript"]:
-            print_meeting_summary()
+        logger.info("🛑 Stopped by user")

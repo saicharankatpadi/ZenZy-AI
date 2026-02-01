@@ -14,11 +14,11 @@ export const aiToolsList = [
     path:"/ai-roadmap-agent"
     },
      {
-    name:"Career Course Generator",
-    description:"Build and track your crack course",
-    icon:"/online-education.png",
+    name:"Code Sand Box",
+    description:"Practise and Code",
+    icon:"/coding.jpeg",
     button:"Create-your-course",
-    path:"/ai-course-generator"
+    path:"/code-sand-box"
     },
     {
     name:"Jarvis",
@@ -26,5 +26,12 @@ export const aiToolsList = [
     icon:"/jarvis.jpeg",
     button:"Join",
     path:"/join"
-    }
+    },
+     {
+    name:"Career Course Generator",
+    description:"Build and track your crack course",
+    icon:"/online-education.png",
+    button:"Create-your-course",
+    path:"/ai-course-generator"
+    },
 ]

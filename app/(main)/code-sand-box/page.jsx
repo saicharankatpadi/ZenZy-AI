@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import React from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const page = () => {
   return (
@@ -16,7 +17,7 @@ const page = () => {
         >Coding Adventure</h2>
 
         <h2 className="mt-5 font-game text-3xl">Beginner friendly coding courses and projects</h2>
-       <Button className="font-game mt-7 text-3xl p-6"variant={"pixel"}>GET STARTED</Button>
+      <Link href="/explore"><Button className="font-game mt-7 text-3xl p-6"variant={"pixel"}>GET STARTED</Button></Link> 
    
     </div>
     </div>

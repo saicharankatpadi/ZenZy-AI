@@ -93,7 +93,9 @@ export async function POST(req) {
       courseJson: JSONResp, // Store full JSON
       bannerImageUrl: bannerImageUrl,
       userEmail: userEmail,
-      categoryId: formData?.category
+      // Change 'category' to 'catetgory' to match your current DB schema
+  catetgory: formData.category || JSONResp.course.category,
+   
     };
 
     console.log("Saving to DB:", dataToSave);

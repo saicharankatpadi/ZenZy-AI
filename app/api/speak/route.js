@@ -10,7 +10,7 @@ export async function POST(req) {
     const { text } = await req.json();
 
     const audio = await client.generate({
-      voice: "Rachel",
+      voice: "21m00Tcm4TlvDq8ikWAM",
       text: text,
       model_id: "eleven_multilingual_v2",
     });

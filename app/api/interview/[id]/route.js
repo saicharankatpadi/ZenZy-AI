@@ -1,23 +1,26 @@
-import { db } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import { db } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-// GET - Fetch interview
 export async function GET(req, { params }) {
-  const { id } = await params;
-  
   try {
+    const { id } = await params;
+    const { userId } = await auth();
+
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const interview = await db.interview.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         questions: {
-          orderBy: { orderIndex: 'asc' }
+          orderBy: { orderIndex: "asc" },
         },
-        answers: true
-      }
+      },
     });
 
     if (!interview) {
-      return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     return NextResponse.json(interview);
@@ -26,22 +29,24 @@ export async function GET(req, { params }) {
   }
 }
 
-// PATCH - Update status (THIS WAS MISSING!)
-// app/api/interview/[id]/route.js
-export async function PATCH(request, { params }) {
-  const { id } = await params;
-  const { status, currentIndex } = await request.json();
-  
+export async function PATCH(req, { params }) {
   try {
+    const { id } = await params;
+    const { userId } = await auth();
+    const { status, currentIndex } = await req.json();
+
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const data = {};
     if (status) data.status = status;
     if (currentIndex !== undefined) data.currentIndex = currentIndex;
-    
+
     const updated = await db.interview.update({
-      where: { id },
-      data
+      where: { id, userId },
+      data,
     });
-    
+
     return NextResponse.json(updated);
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

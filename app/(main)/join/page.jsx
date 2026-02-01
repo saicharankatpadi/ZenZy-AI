@@ -34,7 +34,7 @@ export default function Home() {
           onClick={handleJoin}
           className="mt-5 w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium shadow-lg transition"
         >
-          Join Meeting
+          Connect to Jarvis..
         </button>
       </div>
     </div>

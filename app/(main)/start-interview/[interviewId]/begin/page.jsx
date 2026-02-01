@@ -45,6 +45,17 @@ export default function InterviewPage() {
   const [transcript, setTranscript] = useState("");
   const [conversation, setConversation] = useState([]);
 
+  // Fix 1: Ensure video stream attaches whenever cameraEnabled turns true
+  useEffect(() => {
+    if (cameraEnabled && videoRef.current && !videoRef.current.srcObject) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+          videoRef.current.srcObject = stream;
+        })
+        .catch(err => console.error("Camera re-attachment failed", err));
+    }
+  }, [cameraEnabled]);
+
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
@@ -61,7 +72,6 @@ export default function InterviewPage() {
       const data = await res.json();
 
       if (data.status === "completed") {
-        // ⬇️⬇️ CHANGED: Redirect to mock feedback page ⬇️⬇️
         router.push(`/mock/${interviewId}/feedback`);
         return;
       }
@@ -86,10 +96,11 @@ export default function InterviewPage() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 },
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
         setCameraEnabled(true);
+        // Timeout ensures the video element is rendered before setting srcObject
+        setTimeout(() => {
+          if (videoRef.current) videoRef.current.srcObject = stream;
+        }, 100);
       } catch (err) {
         alert("Camera access denied");
       }
@@ -123,7 +134,6 @@ export default function InterviewPage() {
 
     recognition.onresult = (event) => {
       let finalTranscript = "";
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
@@ -134,10 +144,10 @@ export default function InterviewPage() {
         setTranscript((prev) => prev + " " + finalTranscript);
         clearTimeout(window.silenceTimer);
         window.silenceTimer = setTimeout(() => {
-          if (finalTranscript.trim().length > 5) {
+          if (finalTranscript.trim().length > 2) { // Lowered threshold for responsiveness
             handleAnswerSubmit(finalTranscript);
           }
-        }, 1500);
+        }, 2000); // 2 second pause triggers submission
       }
     };
 
@@ -168,7 +178,7 @@ export default function InterviewPage() {
 
     if (audioUrl && audioRef.current) {
       audioRef.current.src = audioUrl;
-      await audioRef.current.play();
+      audioRef.current.play().catch(e => console.log("Audio play error", e));
       audioRef.current.onended = () => {
         setIsSpeaking(false);
         startListening();
@@ -183,6 +193,7 @@ export default function InterviewPage() {
   };
 
   const startListening = () => {
+    if (isCompleted) return;
     setupSpeechRecognition();
     setTimeout(() => {
       try {
@@ -191,12 +202,14 @@ export default function InterviewPage() {
       } catch (error) {
         console.log("Already listening");
       }
-    }, 50);
+    }, 100);
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       recognitionRef.current = null;
     }
     setMicEnabled(false);
@@ -209,14 +222,18 @@ export default function InterviewPage() {
 
     stopListening();
 
-    const answerText = transcript.trim() || finalText;
-    if (!answerText) {
+    // Use latest transcript state if finalText is just a chunk
+    const answerText = finalText || transcript;
+    
+    if (!answerText.trim()) {
       isProcessingAnswer.current = false;
+      startListening(); // Resume if empty
       return;
     }
 
     const actualCurrentIndex = currentIndexRef.current;
     const currentQuestion = questions[actualCurrentIndex];
+    
     if (!currentQuestion) {
       isProcessingAnswer.current = false;
       return;
@@ -240,16 +257,18 @@ export default function InterviewPage() {
       });
 
       const nextIndex = actualCurrentIndex + 1;
-      setCurrentIndex(nextIndex);
-      currentIndexRef.current = nextIndex;
-
+      
       if (nextIndex < questions.length) {
+        setCurrentIndex(nextIndex);
+        currentIndexRef.current = nextIndex;
+        // Small timeout to allow state to settle
         setTimeout(() => {
-          askCurrentQuestion(nextIndex);
           isProcessingAnswer.current = false;
-        }, 500);
+          askCurrentQuestion(nextIndex);
+        }, 1000);
       } else {
         setIsCompleted(true);
+        setCurrentIndex(nextIndex);
         isProcessingAnswer.current = false;
         await handleInterviewComplete();
       }
@@ -262,16 +281,13 @@ export default function InterviewPage() {
   const handleInterviewComplete = async () => {
     setGeneratingFeedback(true);
     try {
-      const transcript = conversation.map((msg) => ({
+      const formattedTranscript = conversation.map((msg) => ({
         role: msg.role === "interviewer" ? "Interviewer" : "Candidate",
         content: msg.content,
       }));
 
-      await createFeedback({ interviewId, transcript });
-      
-      // ⬇️⬇️ CHANGED: Redirect to mock feedback page ⬇️⬇️
+      await createFeedback({ interviewId, transcript: formattedTranscript });
       router.push(`/mock/${interviewId}/feedback`);
-      
     } catch (error) {
       console.error("Error generating feedback:", error);
       setGeneratingFeedback(false);
@@ -292,7 +308,7 @@ export default function InterviewPage() {
       }),
     });
 
-    setTimeout(() => askCurrentQuestion(0), 100);
+    setTimeout(() => askCurrentQuestion(0), 500);
   };
 
   if (!interviewId) return null;
@@ -301,9 +317,7 @@ export default function InterviewPage() {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <Loader2 className="animate-spin w-12 h-12 text-blue-600" />
-        <h2 className="text-2xl font-bold text-gray-800">
-          Generating AI Feedback...
-        </h2>
+        <h2 className="text-2xl font-bold text-gray-800">Generating AI Feedback...</h2>
         <p className="text-gray-600">Analyzing your interview responses</p>
       </div>
     );
@@ -313,14 +327,12 @@ export default function InterviewPage() {
     <div className="max-w-[1400px] mx-auto px-6 md:px-10 lg:px-16 mt-10 mb-10">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 tracking-tight">
-          AI Interview Session{" "}
-          {interviewData?.jobTitle && `- ${interviewData.jobTitle}`}
+          AI Interview Session {interviewData?.jobTitle && `- ${interviewData.jobTitle}`}
         </h2>
         <UserButton />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Transcript Panel */}
         <div className="lg:col-span-1 h-[65vh] relative flex flex-col order-2 lg:order-1">
           <div className="flex-1 bg-white/30 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-xl flex flex-col overflow-hidden">
             <div className="p-5 border-b border-white/10 bg-white/5 flex items-center justify-between">
@@ -329,9 +341,7 @@ export default function InterviewPage() {
                 <h3 className="font-semibold text-gray-700">Transcript</h3>
               </div>
               {isListening && (
-                <span className="text-red-500 text-xs font-bold animate-pulse">
-                  Recording
-                </span>
+                <span className="text-red-500 text-xs font-bold animate-pulse">Recording</span>
               )}
             </div>
 
@@ -353,7 +363,6 @@ export default function InterviewPage() {
                   {msg.content}
                 </motion.div>
               ))}
-
               {isListening && transcript && (
                 <div className="p-4 rounded-2xl bg-gray-100 self-end text-sm text-gray-600 italic">
                   {transcript}...
@@ -363,17 +372,8 @@ export default function InterviewPage() {
 
             <div className="p-4 border-t border-white/10 bg-white/5">
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={toggleCamera}
-                >
-                  {cameraEnabled ? (
-                    <VideoOff size={16} className="mr-2" />
-                  ) : (
-                    <Video size={16} className="mr-2" />
-                  )}
+                <Button variant="outline" size="sm" className="flex-1" onClick={toggleCamera}>
+                  {cameraEnabled ? <VideoOff size={16} className="mr-2" /> : <Video size={16} className="mr-2" />}
                   {cameraEnabled ? "Hide Cam" : "Show Cam"}
                 </Button>
                 <Button
@@ -383,11 +383,7 @@ export default function InterviewPage() {
                   onClick={micEnabled ? stopListening : startListening}
                   disabled={isSpeaking || !isStarted || isCompleted}
                 >
-                  {micEnabled ? (
-                    <MicOff size={16} className="mr-2" />
-                  ) : (
-                    <Mic size={16} className="mr-2" />
-                  )}
+                  {micEnabled ? <MicOff size={16} className="mr-2" /> : <Mic size={16} className="mr-2" />}
                   {micEnabled ? "Stop" : "Speak"}
                 </Button>
               </div>
@@ -395,109 +391,49 @@ export default function InterviewPage() {
           </div>
         </div>
 
-        {/* Video/AI Panel */}
         <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
           <div className="h-[65vh] bg-slate-900 border border-white/10 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
             <div className="w-full h-full flex items-center justify-center relative">
               <AnimatePresence mode="wait">
                 {!cameraEnabled ? (
-                  <motion.div
-                    key="ai-avatar"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.1 }}
-                    className="relative"
-                  >
+                  <motion.div key="ai-avatar" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="relative text-center">
                     <div className="absolute inset-0 bg-blue-500 rounded-full blur-3xl opacity-20 animate-pulse"></div>
-                    <div
-                      className={`relative z-10 ${
-                        isSpeaking ? "animate-bounce" : ""
-                      }`}
-                    >
-                      <Image
-                        src="/interviewer.jpeg"
-                        alt="AI Interviewer"
-                        width={200}
-                        height={200}
-                        className="rounded-full border-4 border-white/20 shadow-2xl"
-                      />
+                    <div className={`relative z-10 ${isSpeaking ? "animate-bounce" : ""}`}>
+                      <Image src="/interviewer.jpeg" alt="AI Interviewer" width={200} height={200} className="rounded-full border-4 border-white/20 shadow-2xl" />
                     </div>
-                    <div className="text-center mt-8">
-                      <h3 className="text-white font-semibold text-lg">
-                        AI Interviewer
-                      </h3>
+                    <div className="mt-8">
+                      <h3 className="text-white font-semibold text-lg">AI Interviewer</h3>
                       <p className="text-white/50 text-sm mt-1">
-                        {isSpeaking
-                          ? "Speaking..."
-                          : isListening
-                          ? "Listening..."
-                          : isCompleted
-                          ? "Completed"
-                          : "Ready"}
+                        {isSpeaking ? "Speaking..." : isListening ? "Listening..." : isCompleted ? "Completed" : "Ready"}
                       </p>
                       {isStarted && !isCompleted && (
-                        <p className="text-green-400 text-xs mt-2">
-                          Question {currentIndex + 1} of {questions.length}
-                        </p>
+                        <p className="text-green-400 text-xs mt-2">Question {currentIndex + 1} of {questions.length}</p>
                       )}
                     </div>
                   </motion.div>
                 ) : (
-                  <motion.div
-                    key="user-camera"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="w-full h-full relative"
-                  >
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover transform scale-x-[-1]"
-                    />
+                  <motion.div key="user-camera" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full relative">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-
-            <motion.div
-              onClick={() => setCameraEnabled(!cameraEnabled)}
-              className="absolute bottom-6 right-6 w-32 h-24 bg-white/10 backdrop-blur-2xl border border-white/30 rounded-2xl cursor-pointer shadow-2xl flex flex-col items-center justify-center group"
-            >
+            <motion.div onClick={() => setCameraEnabled(!cameraEnabled)} className="absolute bottom-6 right-6 w-32 h-24 bg-white/10 backdrop-blur-2xl border border-white/30 rounded-2xl cursor-pointer shadow-2xl flex flex-col items-center justify-center group">
               <div className="scale-75 mt-2">
-                {cameraEnabled ? (
-                  <Image
-                    src="/interviewer.jpeg"
-                    width={45}
-                    height={45}
-                    className="rounded-full"
-                    alt="ai"
-                  />
-                ) : (
-                  <Camera className="w-10 h-10 text-white/70" />
-                )}
+                {cameraEnabled ? <Image src="/interviewer.jpeg" width={45} height={45} className="rounded-full" alt="ai" /> : <Camera className="w-10 h-10 text-white/70" />}
               </div>
-              <p className="text-[9px] font-bold text-white/50 mt-2 uppercase">
-                {cameraEnabled ? "Show AI" : "Show Camera"}
-              </p>
+              <p className="text-[9px] font-bold text-white/50 mt-2 uppercase">{cameraEnabled ? "Show AI" : "Show Camera"}</p>
             </motion.div>
           </div>
-
           <div className="flex items-center justify-center gap-4">
             {!isStarted && !isCompleted && (
-              <Button
-                onClick={startInterview}
-                disabled={isLoading || questions.length === 0}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg rounded-full shadow-lg"
-              >
+              <Button onClick={startInterview} disabled={isLoading || questions.length === 0} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg rounded-full shadow-lg">
                 {isLoading ? "Loading..." : "Start Interview"}
               </Button>
             )}
           </div>
         </div>
       </div>
-
       <audio ref={audioRef} className="hidden" />
     </div>
   );

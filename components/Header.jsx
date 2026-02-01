@@ -1,5 +1,5 @@
-
-
+import { History } from 'lucide-react';
+import { Video } from 'lucide-react';
 import React from 'react'
 import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/nextjs';
 import Link from 'next/link';
@@ -70,7 +70,7 @@ const Header = async () => {
     <header className="fixed top-0 w-full bg-background/80 border-b backdrop-blur-md z-50 supports-backdrop-filter:bg-background/60">
         <nav className="container mx-auto flex items-center justify-between px-4">
             <Link href="/">
-              <Image src="/logo.png" alt="Sens AI Logo" width={150} height={50}
+              <Image src="/Zenzy.jpeg" alt="Sens AI Logo" width={150} height={50}
                 className="object-contain py-1 h-12 w-auto"/>
               
             </Link>
@@ -153,13 +153,13 @@ const Header = async () => {
         </Link>
     </DropdownMenuItem>
       <DropdownMenuItem>
-        <Link href={"/ai-roadmap-agent"} className="flex items-center gap-2" >
-          <GraduationCap className=" h-4 w-4" />
-          <span >Interview Prep</span>
+        <Link href={"/ai-mock-interview"} className="flex items-center gap-2" >
+          <Video className=" h-4 w-4" />
+          <span >Mock Interview</span>
         </Link>
     </DropdownMenuItem><DropdownMenuItem>
         <Link href={"/video-progress"} className="flex items-center gap-2" >
-          <GraduationCap className=" h-4 w-4" />
+          <History className=" h-4 w-4" />
           <span >History</span>
         </Link>
     </DropdownMenuItem>

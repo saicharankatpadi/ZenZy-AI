@@ -44,3 +44,83 @@ next-env.d.ts
 /.clerk/
 
 /lib/generated/prisma
+/ai-scripts/
+/ai-templates/
+/ai-interviews/
+/ai-agents/
+/ai-resumes/
+venv/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+node_modules/
+.next/
+dist/
+build/
+out/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+logs/
+tmp/
+.cache/
+# =====================
+# ENV & SECRETS
+# =====================
+.env
+.env.*
+!.env.example
+
+# =====================
+# PYTHON
+# =====================
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# =====================
+# NODE / REACT / NEXT
+# =====================
+node_modules/
+.next/
+dist/
+build/
+out/
+
+# =====================
+# LOGS & RUNTIME
+# =====================
+*.log
+logs/
+tmp/
+.cache/
+
+# =====================
+# OS / EDITORS
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =====================
+# TEST / COVERAGE
+# =====================
+coverage/
+.nyc_output/
+
+# =====================
+# MISC
+# =====================
+*.sqlite
+*.db

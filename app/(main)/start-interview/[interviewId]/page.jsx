@@ -26,7 +26,7 @@ const page = () => {
 
   return (
 
-    <div className="flex flex-col items-center justify-center mt-24">
+    <div className="flex  flex-col items-center justify-center mt-24">
 
        <div className="w-full rounded-3xl max-w-3xl">
 
