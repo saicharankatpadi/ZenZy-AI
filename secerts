@@ -1,0 +1,49 @@
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cmVndWxhci1mbGVhLTM5LmNsZXJrLmFjY291bnRzLmRldiQ
+CLERK_SECRET_KEY=sk_test_F8ahfcQ9aHT9FUFDMNkt4rINaeZhjMPZujgLUcW04n
+NEXT_PUBLIC_CLERK_SIGN_IN_URL = /sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL =/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL = /onboarding
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL = /onboarding
+DATABASE_URL = postgresql://Saicharan%20Katpadi:npg_WyVeI2jHLw4l@ep-autumn-pond-a8h9m1z2.eastus2.azure.neon.tech/aimate?sslmode=require&channel_binding=require&connect_timeout=30&pool_timeout=30
+GEMINI_API_KEY = AIzaSyBMDr8M-DWPUldUvMcqeZMp2F9nrxS_foc
+INNGEST_SIGNING_KEY=local.dev
+
+INNGEST_SERVER_HOST=http://127.0.0.1:8288
+
+IMAGEKIT_PUBLIC_KEY = public_g2jUbt5jLm2YOaH69NNbWXYR6Uo=
+IMAGEKIT_PRIVATE_KEY = private_KP3un85aqS7Cp+o5L2wDvh38c54=
+IMAGEKIT_ENDPOINT_URL = https://ik.imagekit.io/gottqhzcd 
+
+ASSEMBLY_API_KEY = 0de44943763f42fe86569121a4260a03
+
+
+AI_GURU_LAB_API = 9d306d5d-93a4-41c4-a3db-d23065d073e2
+
+ELEVENLABS_API_KEY=sk_51e3e620aa4e5d22230faa29949fcd554e427b2353355b8e
+
+
+YOUTUBE_API_KEY = AIzaSyDStLbDLQWNROCG5vhm3Mp5t7sLhoICeIs
+
+
+STREAM_API_KEY=9bsxzsdsgvuz
+
+
+STREAM_API_SECRET=hd8d3mgcsk558xckn4yqqfge7g5xzutufrxwwqa9pa94uun9takspysadd2nm5af
+
+
+NEXT_PUBLIC_STREAM_API_KEY = 9bsxzsdsgvuz
+
+
+NEXT_PUBLIC_CALL_ID = demo-meeting-room
+
+
+COURSE_GENERATOR_API_KEY = AIzaSyDZPo4nKMxJV6UZDCK-_Urzqn407ZX1VUM  
+
+
+NEWSAPI_KEY=f3471a1279a945cd84f4d5c3a5f703cd
+CLEARBIT_API_KEY=your_clearbit_key
+
+# Optional (Enhances tech stack detection)
+BUILTWITH_API_KEY=your_builtwith_key
+# Get free key at: https://api.builtwith.com/free-api
+http://localhost:3000/api/inngest
